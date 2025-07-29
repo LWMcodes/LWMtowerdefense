@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWM Tower Defense Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Basic page styling */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        /* Main game container */
+        #game-container {
+            display: flex;
+            flex-direction: row; /* Align game and menu side-by-side */
+            align-items: flex-start;
+            gap: 20px;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            justify-content: center;
+        }
+        
+        #game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Game canvas styling */
+        canvas {
+            border: 4px solid #444;
+            background-color: #2a2a2a;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* UI panel for stats */
+        #ui-panel {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 800px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #444;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        /* Individual stat display */
+        .stat {
+            font-size: 1em;
+            text-shadow: 2px 2px #000;
+        }
+        
+        .stat-value {
+            color: #00ff00; /* Bright green for values */
+        }
+
+        /* Tower selection menu */
+        #tower-menu {
+            width: 200px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #444;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #tower-menu h2 {
+            font-size: 1.1em;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-decoration: underline;
+        }
+
+        .tower-button {
+            background-color: #4CAF50;
+            border: 2px solid #333;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            text-decoration: none;
+            display: block;
+            font-size: 14px;
+            font-family: 'Press Start 2P', cursive;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        .tower-button:hover {
+            background-color: #45a049;
+        }
+
+        .tower-button.selected {
+            background-color: #00aaff;
+            box-shadow: 0 0 15px #00aaff;
+        }
+
+        .tower-button .cost {
+            font-weight: bold;
+            color: #ffeb3b;
+        }
+
+        /* Game controls */
+        #game-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-button {
+            background-color: #007bff;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            font-family: 'Press Start 2P', cursive;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .control-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tower Defense</h1>
+    <div id="game-container">
+        <div id="game-area">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div id="ui-panel">
+                <div class="stat">Money: <span id="money" class="stat-value">100</span></div>
+                <div class="stat">Score: <span id="score" class="stat-value">0</span></div>
+                <div class="stat">Lives: <span id="lives" class="stat-value">10</span></div>
+                <div class="stat">Wave: <span id="wave" class="stat-value">0</span></div>
+            </div>
+            <div id="game-controls">
+                <button id="pause-start-btn" class="control-button">Pause</button>
+                <button id="speed-toggle-btn" class="control-button">Speed: 1x</button>
+            </div>
+        </div>
+
+        <div id="tower-menu">
+            <h2>Towers</h2>
+            <button id="basic-tower-btn" class="tower-button selected">
+                <div>Machine Gun</div>
+                <div class="cost">Cost: 50</div>
+                <div>Fast, low damage.</div>
+            </button>
+            <button id="cannon-tower-btn" class="tower-button">
+                <div>Cannon</div>
+                <div class="cost">Cost: 100</div>
+                <div class="description">Slow, high damage.</div>
+            </button>
+            <button id="ice-tower-btn" class="tower-button">
+                <div>Ice Tower</div>
+                <div class="cost">Cost: 75</div>
+                <div class="description">Freezes enemies.</div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas and Context Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- Game State Variables ---
+        let money = 500;
+        let score = 0;
+        let lives = 10;
+        let wave = 0;
+        let enemies = [];
+        let towers = [];
+        let projectiles = [];
+        let gameOver = false;
+        let waveInProgress = false;
+        let isPaused = false;
+        let gameSpeed = 1; // 1x or 2x
+        const GRID_SIZE = 50;
+        let selectedTowerType = 'basic'; // Default selected tower
+        let animationFrameId; // To store the requestAnimationFrame ID
+
+        // --- Tower Definitions ---
+        const TOWER_TYPES = {
+            'basic': { cost: 50, damage: 30, fireRate: 60, range: 125, color: '#00aaff', projectileColor: '#ffff00', description: 'Fast, low damage.' },
+            'cannon': { cost: 100, damage: 100, fireRate: 180, range: 175, color: '#ff8c00', projectileColor: '#ff4500', description: 'Slow, high damage.' },
+            'ice': { cost: 75, damage: 0, fireRate: 120, range: 100, color: '#87cefa', projectileColor: '#e0ffff', description: 'Slows enemies.' }
+        };
+
+        // --- Enemy Definitions ---
+        const ENEMY_TYPES = {
+            'normal': { health: 100, speed: 1, color: 'hsl(0, 80%, 50%)', reward: 10, score: 100 },
+            'fast': { health: 70, speed: 1.8, color: 'hsl(120, 80%, 40%)', reward: 15, score: 150 },
+            'tank': { health: 300, speed: 0.6, color: 'hsl(240, 60%, 50%)', reward: 25, score: 250 }
+        };
+
+        // --- UI Element References ---
+        const moneyDisplay = document.getElementById('money');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const waveDisplay = document.getElementById('wave');
+        const basicTowerBtn = document.getElementById('basic-tower-btn');
+        const cannonTowerBtn = document.getElementById('cannon-tower-btn');
+        const iceTowerBtn = document.getElementById('ice-tower-btn');
+        const pauseStartBtn = document.getElementById('pause-start-btn');
+        const speedToggleBtn = document.getElementById('speed-toggle-btn');
+
+
+        // --- Enemy Path Definition ---
+        const path = [
+            { x: 0, y: 3 * GRID_SIZE },
+            { x: 4 * GRID_SIZE, y: 3 * GRID_SIZE },
+            { x: 4 * GRID_SIZE, y: 8 * GRID_SIZE },
+            { x: 12 * GRID_SIZE, y: 8 * GRID_SIZE },
+            { x: 12 * GRID_SIZE, y: 2 * GRID_SIZE },
+            { x: 16 * GRID_SIZE, y: 2 * GRID_SIZE }
+        ];
+
+        // --- Game Object Classes ---
+
+        class Tower {
+            constructor(x, y, type) {
+                const stats = TOWER_TYPES[type];
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.width = GRID_SIZE;
+                this.height = GRID_SIZE;
+                this.range = stats.range;
+                this.fireRate = stats.fireRate;
+                this.damage = stats.damage;
+                this.color = stats.color;
+                this.projectileColor = stats.projectileColor;
+                this.fireCooldown = 0;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeStyle = '#333';
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.range, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            update() {
+                if (this.fireCooldown > 0) {
+                    this.fireCooldown -= gameSpeed;
+                }
+
+                const target = enemies.find(enemy => {
+                    const dx = enemy.x - (this.x + this.width / 2);
+                    const dy = enemy.y - (this.y + this.height / 2);
+                    return Math.sqrt(dx * dx + dy * dy) < this.range;
+                });
+
+                if (target && this.fireCooldown <= 0) {
+                    if (this.type === 'ice') {
+                        // Ice tower doesn't shoot projectiles, it applies a debuff
+                        target.applySlow(180); // Slow for 3 seconds (60 frames/sec * 3)
+                        this.fireCooldown = this.fireRate;
+                    } else {
+                        projectiles.push(new Projectile(this.x + this.width / 2, this.y + this.height / 2, target, this.damage, this.projectileColor));
+                        this.fireCooldown = this.fireRate;
+                    }
+                }
+            }
+        }
+
+        class Enemy {
+            constructor(type) {
+                const stats = ENEMY_TYPES[type];
+                this.x = path[0].x;
+                this.y = path[0].y;
+                this.width = 30;
+                this.height = 30;
+                this.type = type;
+                this.speed = stats.speed;
+                this.health = stats.health;
+                this.maxHealth = stats.health;
+                this.color = stats.color;
+                this.reward = stats.reward;
+                this.score = stats.score;
+                this.pathIndex = 0;
+                this.slowTimer = 0;
+                this.currentSpeed = this.speed;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+                
+                // Health bar
+                const healthBarWidth = this.width * (this.health / this.maxHealth);
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2 - 10, this.width, 5);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2 - 10, healthBarWidth, 5);
+
+                // Slow effect indicator
+                if (this.slowTimer > 0) {
+                    ctx.fillStyle = 'rgba(135, 206, 250, 0.7)'; // Light blue for slow
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.width / 2 + 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            update() {
+                if (this.slowTimer > 0) {
+                    this.slowTimer -= gameSpeed;
+                    this.currentSpeed = this.speed * 0.5; // Half speed when slowed
+                } else {
+                    this.currentSpeed = this.speed;
+                }
+
+                if (this.pathIndex >= path.length - 1) {
+                    lives--;
+                    const enemyIndex = enemies.indexOf(this);
+                    if (enemyIndex > -1) enemies.splice(enemyIndex, 1);
+                    return;
+                }
+                const targetPoint = path[this.pathIndex + 1];
+                const dx = targetPoint.x - this.x;
+                const dy = targetPoint.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < this.currentSpeed * gameSpeed) {
+                    this.pathIndex++;
+                } else {
+                    this.x += (dx / distance) * this.currentSpeed * gameSpeed;
+                    this.y += (dy / distance) * this.currentSpeed * gameSpeed;
+                }
+            }
+
+            applySlow(duration) {
+                this.slowTimer = duration;
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, target, damage, color) {
+                this.x = x;
+                this.y = y;
+                this.target = target;
+                this.speed = 8; // Increased projectile speed
+                this.damage = damage;
+                this.radius = 5;
+                this.color =
